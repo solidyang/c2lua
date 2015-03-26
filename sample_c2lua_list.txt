@@ -1,0 +1,4 @@
+../../include/summer/common/nmsgdefine.h summer::ActTimeRange
+../../include/summer/common/nmsgother.h summer::PlayerData nDBID szRoleName nIcon
+../../include/summer/common/nmsgother.h summer::GMM2C_Login data nMipVip marketingOpen marketingShow peakPVPRestHour
+../../include/summer/common/nmsgguild.h summer::GMM2C_Guild_Announce sAnnoucement

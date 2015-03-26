@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "c2lua", "c2lua.vcxproj", "{210404B5-A809-4F62-A66A-C436286C64FE}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pcre", "..\..\library\pcre\src\pcre.vcxproj", "{E16AC5CA-39E8-4A90-8691-CE83BBAD2F6B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+		ReleaseMT|Win32 = ReleaseMT|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{210404B5-A809-4F62-A66A-C436286C64FE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{210404B5-A809-4F62-A66A-C436286C64FE}.Debug|Win32.Build.0 = Debug|Win32
+		{210404B5-A809-4F62-A66A-C436286C64FE}.Release|Win32.ActiveCfg = Release|Win32
+		{210404B5-A809-4F62-A66A-C436286C64FE}.Release|Win32.Build.0 = Release|Win32
+		{210404B5-A809-4F62-A66A-C436286C64FE}.ReleaseMT|Win32.ActiveCfg = Release|Win32
+		{210404B5-A809-4F62-A66A-C436286C64FE}.ReleaseMT|Win32.Build.0 = Release|Win32
+		{E16AC5CA-39E8-4A90-8691-CE83BBAD2F6B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E16AC5CA-39E8-4A90-8691-CE83BBAD2F6B}.Debug|Win32.Build.0 = Debug|Win32
+		{E16AC5CA-39E8-4A90-8691-CE83BBAD2F6B}.Release|Win32.ActiveCfg = Release|Win32
+		{E16AC5CA-39E8-4A90-8691-CE83BBAD2F6B}.Release|Win32.Build.0 = Release|Win32
+		{E16AC5CA-39E8-4A90-8691-CE83BBAD2F6B}.ReleaseMT|Win32.ActiveCfg = ReleaseMT|Win32
+		{E16AC5CA-39E8-4A90-8691-CE83BBAD2F6B}.ReleaseMT|Win32.Build.0 = ReleaseMT|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
