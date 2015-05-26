@@ -1,4 +1,4 @@
-DoFile("c2lua.cpp");
+DoFile("c2lua.cpp");   --xxx
 DoFile("c2luaimpl.cpp");
 
 local msg = _G.sendBegin(C2Lua.sizeof("GMM2C_Login"));
