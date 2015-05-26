@@ -278,6 +278,10 @@ struct StructMemberInfo
 		else if (!sArrayLen.empty()) {
 			typ = 9;
 		}
+		else if (sType == "bool") {
+			typ = 10;
+		}
+
 		return typ;
 	}
 };
@@ -325,9 +329,20 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 	_snprintf(pattern, 255, "\\bstruct\\s*%s\\s*\\{", struct_name.c_str());	
 	int count = find_by_regex(src, pattern, result);
 	if (0 == count) {
-		_snprintf(pattern, 255, "\\bclass\\s%s\\s\\{", struct_name.c_str());	
+		_snprintf(pattern, 255, "\\bclass\\s*%s\\s*\\{", struct_name.c_str());	
 		count = find_by_regex(src, pattern, result);
 	}
+
+	if (0 == count) {
+		_snprintf(pattern, 255, "\\bstruct\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*(\\w+)\\s*\\{", struct_name.c_str());	
+		count = find_by_regex(src, pattern, result);
+	}
+
+	if (0 == count) {
+		_snprintf(pattern, 255, "\\bclass\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*(\\w+)\\s*\\{", struct_name.c_str());	
+		count = find_by_regex(src, pattern, result);
+	}
+
 	if (0 == count) {
 		printf("Can't find %s definition in %s\r\n", sNamespaceStruct, sHeader);
 		return 0;
@@ -341,6 +356,17 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 	}	
 	std::string struct_content;
 	struct_content.assign(src.c_str() + result[0].nTo, struct_end - 1 - result[0].nTo);
+
+	//struct inherit
+	std::string sNamespaceStructInherit;
+	std::string sStructInherit;
+	if (count > 1) {
+		sNamespaceStructInherit.assign(src.c_str(), result[1].nFrom, result[1].nTo - result[1].nFrom);
+		const char *namespace_end = strrchr(sNamespaceStructInherit.c_str(), ':');
+		if (namespace_end) {
+			sStructInherit.assign(namespace_end+1, 0, sNamespaceStruct + strlen(sNamespaceStruct) - (namespace_end+1));
+		}
+	}
 
 	//vStructs.push_back(struct_name);
 	vHeader.insert(header);
@@ -383,6 +409,19 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 		}		
 	}
 
+	if (!sNamespaceStructInherit.empty()) {
+		std::vector<StructInfo>::iterator it = vStructs.begin();
+		for (;it != vStructs.end(); ++it) {
+			if (it->sNamespaceStruct.compare(sNamespaceStructInherit) == 0
+				|| it->sName.compare(sNamespaceStructInherit) == 0) {
+				for (int i = 0; i < it->vMember.size(); ++i) {
+					si.vMember.push_back(it->vMember[i]);
+				}
+				break;
+			}
+		}
+	}
+	
 	vStructs.push_back(si);
 
 /*
