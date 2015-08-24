@@ -722,12 +722,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			{
 				output(out, "\tout += \"\\t\\treturn buff:%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
 			}else {
-				output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s);", mi.sArrayLen.c_str());
+				output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen.c_str());
 				if (mi.sArrayLen1.empty()) {
 					output(out, "\tout += \"\\t\\t\\tret[i] = buff:%s(offset + i*%d);\\r\\n\";", mi.sLuaDataFunc.c_str(), mi.nLen);
 				} else {
 					output(out, "\tout += \"\\t\\t\\tlocal item = {};\\r\\n\";");
-					output(out, "\toutput(out, \"\\t\\t\\tfor j = 0,%%d do\\r\\n\", %s);", mi.sArrayLen1.c_str());
+					output(out, "\toutput(out, \"\\t\\t\\tfor j = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen1.c_str());
 					output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = buff:%s(offset + i*%%d + j*%d);\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLuaDataFunc.c_str(), mi.nLen, si.sNamespaceStruct.c_str(), mi.sName.c_str());
 					output(out, "\tout += \"\\t\\t\\tend;\\r\\n\";");
 					output(out, "\tout += \"\\t\\t\\tret[i] = item;\\r\\n\";");
