@@ -653,7 +653,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			output(out, "#include \"%s\"", i->c_str());
 		}
 	}	
-	output(out, "\nusing namespace new3d::kernel;\n");
+	output(out, "\nusing namespace new3d::kernel;");
+	output(out, "using namespace summer;\n");
 
 	output(out, "static void output(std::string &out, const char *fmt, ...) {");
 	output(out, "\tchar buffer[2048];");
