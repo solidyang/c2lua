@@ -245,6 +245,41 @@ struct StructMemberInfo
 	std::string sName;
 	std::string sType;
 	std::string sArrayLen;
+	std::string sLuaDataFunc;
+	void setType(std::string typ)
+	{
+		sType = typ;
+		if ((sType == "char" && sArrayLen.empty()) || sType == "Sint8") {
+			sLuaDataFunc = "GetSint8";
+		}
+		else if (sType == "Uint8") {
+			sLuaDataFunc = "GetUint8";
+		}
+		else if (sType == "Sint16") {
+			sLuaDataFunc = "GetSint16";
+		}
+		else if (sType == "Uint16" || sType == "DataHead") {
+			sLuaDataFunc = "GetUint16";
+		}
+		else if (sType == "Sint32") {
+			sLuaDataFunc = "GetSint32";
+		}
+		else if (sType == "Uint32") {
+			sLuaDataFunc = "GetUint32";
+		}
+		else if (sType == "float") {
+			sLuaDataFunc = "GetFloat";
+		}
+		else if (sType == "double") {
+			sLuaDataFunc = "GetDouble";
+		}
+		else if (sType == "char" && !sArrayLen.empty()) {
+			sLuaDataFunc = "GetString";
+		}
+		else if (sType == "bool") {
+			sLuaDataFunc = "GetBoolean";
+		}
+	}
 	int getType() const
 	{
 		int typ = -1;
@@ -288,7 +323,7 @@ struct StructMemberInfo
 
 struct StructInfo
 {
-	std::string sName, sNamespaceStruct;
+	std::string sName, sNamespaceStruct, sNamespace;
 	std::vector<StructMemberInfo> vMember;
 };
 
@@ -298,9 +333,11 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 
 	// extract struct name
 	std::string struct_name = sNamespaceStruct;
+	std::string struct_namespace;
 	const char *namespace_end = strrchr(sNamespaceStruct, ':');
 	if (namespace_end) {
 		struct_name.assign(namespace_end+1, 0, sNamespaceStruct + strlen(sNamespaceStruct) - (namespace_end+1));
+		struct_namespace.assign(sNamespaceStruct, 0, namespace_end - sNamespaceStruct - 1);
 	}
 	
 
@@ -373,6 +410,7 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 	StructInfo si;
 	si.sName = struct_name;
 	si.sNamespaceStruct = sNamespaceStruct;
+	si.sNamespace = struct_namespace;
 
 	// È¥³ý×¢ÊÍ
 	erase_by_regex(struct_content, "\\/\\*(.*\\s*)+?\\*\\/");
@@ -393,7 +431,8 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 	for (unsigned i = 0; i < vars.size(); ++i)
 	{
 		StructMemberInfo mi;
-		mi.sType = vars[i].first;
+		//mi.sType = vars[i].first;
+		
 		std::string &v = vars[i].second;
 		std::string::size_type f = v.find('[');
 		if (f != std::string::npos) {
@@ -403,6 +442,8 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 		else {
 			mi.sName = v;
 		}
+
+		mi.setType(vars[i].first);
 
 		if (filter_vars.empty() || filter_vars.find(mi.sName) != filter_vars.end()) {
 			si.vMember.push_back(mi);
@@ -632,6 +673,38 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		output(out, "\tout += \"\\tend;\\r\\n\";");
 		output(out, "\tout += \"\\treturn typ, off;\\r\\n\";");
+		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
+
+
+		output(out, "\tout += \"function C2Lua.GetArrayData%s(buff, offset, sVarName)\\r\\n\";", si.sName.c_str());
+		output(out, "\tout += \"\\tlocal ret = {};\\r\\n\";");
+		unsigned count = 0;
+		for (unsigned j = 0; j < si.vMember.size(); ++j)
+		{
+			const StructMemberInfo &mi = si.vMember[j];
+			if (mi.sArrayLen.empty())
+				continue;
+
+			if (0 == count) {
+				output(out, "\tout += \"\\tif \\\"%s\\\" == sVarName then\\r\\n\";", mi.sName.c_str());
+			}
+			else {
+				output(out, "\tout += \"\\telseif \\\"%s\\\" == sVarName then\\r\\n\";", mi.sName.c_str());
+			}
+
+			if (mi.getType() == 8)
+			{
+				output(out, "\tout += \"\\t\\trreturn buff::%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
+			}else {
+				output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s);", mi.sArrayLen.c_str());
+				output(out, "\tout += \"\\t\\t\\tret[i] = buff::%s(offset + i*1);\\r\\n\";", mi.sLuaDataFunc.c_str());
+				output(out, "\tout += \"\\t\\tend;\\r\\n\";");
+			}
+			
+			output(out, "\tout += \"\\tend;\\r\\n\";");
+			count++;
+		}
+		output(out, "\tout += \"\\treturn ret;\\r\\n\";");
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 	}
 
