@@ -245,39 +245,51 @@ struct StructMemberInfo
 	std::string sName;
 	std::string sType;
 	std::string sArrayLen;
+	std::string sArrayLen1;
 	std::string sLuaDataFunc;
+	int nLen;
 	void setType(std::string typ)
 	{
 		sType = typ;
+		nLen = 0;
 		if ((sType == "char" && sArrayLen.empty()) || sType == "Sint8") {
 			sLuaDataFunc = "GetSint8";
+			nLen = 1;
 		}
 		else if (sType == "Uint8") {
 			sLuaDataFunc = "GetUint8";
+			nLen = 1;
 		}
 		else if (sType == "Sint16") {
 			sLuaDataFunc = "GetSint16";
+			nLen = 2;
 		}
 		else if (sType == "Uint16" || sType == "DataHead") {
 			sLuaDataFunc = "GetUint16";
+			nLen = 2;
 		}
 		else if (sType == "Sint32") {
 			sLuaDataFunc = "GetSint32";
+			nLen = 4;
 		}
 		else if (sType == "Uint32") {
 			sLuaDataFunc = "GetUint32";
+			nLen = 4;
 		}
 		else if (sType == "float") {
 			sLuaDataFunc = "GetFloat";
+			nLen = 4;
 		}
 		else if (sType == "double") {
 			sLuaDataFunc = "GetDouble";
+			nLen = 4;
 		}
 		else if (sType == "char" && !sArrayLen.empty()) {
 			sLuaDataFunc = "GetString";
 		}
 		else if (sType == "bool") {
 			sLuaDataFunc = "GetBoolean";
+			nLen = 1;
 		}
 	}
 	int getType() const
@@ -437,7 +449,20 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 		std::string::size_type f = v.find('[');
 		if (f != std::string::npos) {
 			mi.sName.assign(v.c_str(), 0, f);
-			mi.sArrayLen.assign(v.c_str(), f+1, v.size() - f - 2);
+
+			std::string sArrayLen;
+			sArrayLen.assign(v.c_str(), f+1, v.size() - f - 2);
+			std::string::size_type af = sArrayLen.find(']');
+			if (af != std::string::npos)
+			{
+				mi.sArrayLen.assign(sArrayLen.c_str(), 0, af);
+				mi.sArrayLen1.assign(sArrayLen.c_str(), af + 2, sArrayLen.length() - af - 1);
+			}
+			else
+			{
+				mi.sArrayLen = sArrayLen;
+				mi.sArrayLen1.clear();
+			}
 		}
 		else {
 			mi.sName = v;
@@ -694,16 +719,26 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			if (mi.getType() == 8)
 			{
-				output(out, "\tout += \"\\t\\treturn buff::%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
+				output(out, "\tout += \"\\t\\treturn buff:%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
 			}else {
 				output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s);", mi.sArrayLen.c_str());
-				output(out, "\tout += \"\\t\\t\\tret[i] = buff::%s(offset + i*1);\\r\\n\";", mi.sLuaDataFunc.c_str());
+				if (mi.sArrayLen1.empty()) {
+					output(out, "\tout += \"\\t\\t\\tret[i] = buff:%s(offset + i*%d);\\r\\n\";", mi.sLuaDataFunc.c_str(), mi.nLen);
+				} else {
+					output(out, "\tout += \"\\t\\t\\tlocal item = {};\\r\\n\";");
+					output(out, "\toutput(out, \"\\t\\t\\tfor j = 0,%%d do\\r\\n\", %s);", mi.sArrayLen1.c_str());
+					output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = buff:%s(offset + i*%%d + j*%d);\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLuaDataFunc.c_str(), mi.nLen, si.sNamespaceStruct.c_str(), mi.sName.c_str());
+					output(out, "\tout += \"\\t\\t\\tend;\\r\\n\";");
+					output(out, "\tout += \"\\t\\t\\tret[i] = item;\\r\\n\";");
+				}
 				output(out, "\tout += \"\\t\\tend;\\r\\n\";");
 			}
-			
-			output(out, "\tout += \"\\tend;\\r\\n\";");
+
 			count++;
 		}
+		if (count)
+			output(out, "\tout += \"\\tend;\\r\\n\";");
+
 		output(out, "\tout += \"\\treturn ret;\\r\\n\";");
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 	}
