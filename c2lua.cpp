@@ -694,7 +694,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			if (mi.getType() == 8)
 			{
-				output(out, "\tout += \"\\t\\trreturn buff::%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
+				output(out, "\tout += \"\\t\\treturn buff::%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
 			}else {
 				output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s);", mi.sArrayLen.c_str());
 				output(out, "\tout += \"\\t\\t\\tret[i] = buff::%s(offset + i*1);\\r\\n\";", mi.sLuaDataFunc.c_str());
