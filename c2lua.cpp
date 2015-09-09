@@ -155,6 +155,25 @@ void parse_vars(const std::string &line, std::vector<std::pair<std::string, std:
 	}
 }
 
+void parse_enums(const std::string &line, std::vector<std::pair<std::string, std::string> > &enums)
+{
+	std::vector<RegexResult> result;
+	int count = find_by_regex(line, "(\\w+)\\s*(?:=\\s*(\\w+[<]*\\w*)\\s*)*[,]*", result);
+	if (count < 2) {
+		return;
+	}
+
+	std::string t;
+	t.assign(line.c_str(), result[1].nFrom, result[1].nTo - result[1].nFrom);
+
+	std::string v;
+	if (count > 2) {
+		v.assign(line.c_str(), result[2].nFrom, result[2].nTo - result[2].nFrom);
+	}
+
+	enums.push_back(std::pair<std::string, std::string>(t, v));
+}
+
 static void output(std::string &out, const char *fmt, ...)
 {
 	char buffer[2048];
@@ -221,6 +240,10 @@ void split_string(const char *str, std::vector<std::string> &v)
 			break;
 		}
 	}
+}
+
+bool start_with(std::string str, std::string start) {
+	return str.compare(0, start.size(), start) == 0;
 }
 
 int read_line(const std::string &src, int from, std::string &line)
@@ -484,7 +507,7 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 		for (;it != vStructs.end(); ++it) {
 			if (it->sNamespaceStruct.compare(sNamespaceStructInherit) == 0
 				|| it->sName.compare(sNamespaceStructInherit) == 0) {
-				for (int i = 0; i < it->vMember.size(); ++i) {
+				for (unsigned i = 0; i < it->vMember.size(); ++i) {
 					si.vMember.push_back(it->vMember[i]);
 				}
 				break;
@@ -606,6 +629,122 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 	return 0;
 }
 
+struct EnumMemberInfo
+{
+	std::string sName;
+	std::string sExpression;
+	int nType;
+};
+
+struct EnumInfo
+{
+	std::string sName, sNamespaceEnum, sNamespace;
+	std::vector<EnumMemberInfo> vMember;
+};
+
+int parse_enum_definition(std::set<std::string> &vHeader, std::vector<EnumInfo> &vEnums, const char *sNamespaceEnum, const char *sHeader)
+{
+	printf("Export %s in %s to lua...\n", sNamespaceEnum, sHeader);
+
+	// extract struct name
+	std::string enum_name = sNamespaceEnum;
+	std::string enum_namespace;
+	const char *namespace_end = strrchr(sNamespaceEnum, ':');
+	if (namespace_end) {
+		enum_name.assign(namespace_end+1, 0, sNamespaceEnum + strlen(sNamespaceEnum) - (namespace_end+1));
+		enum_namespace.assign(sNamespaceEnum, 0, namespace_end - sNamespaceEnum - 1);
+	}
+
+
+	// extract header
+	std::string header = sHeader;
+	const char *slash = NULL;
+	const char *have_include = strstr(sHeader, "/include/");
+	if (have_include) {
+		slash = strchr(have_include + 10, '/');
+	}	
+	else {
+		slash = strrchr(sHeader, '/');
+	}
+	if (slash) {
+		header.assign(slash+1, 0, sHeader + strlen(sHeader) - (slash+1));
+	}
+
+
+	// load header
+	std::string src;
+	read_file(sHeader, src);
+
+	// lookup struct definition
+	std::vector<RegexResult> result;
+	char pattern[256];
+	_snprintf(pattern, 255, "\\benum\\s*%s\\s*\\{", enum_name.c_str());	
+	int count = find_by_regex(src, pattern, result);
+	if (0 == count) {
+		printf("Can't find %s definition in %s\r\n", sNamespaceEnum, sHeader);
+		return 0;
+	}
+
+	int struct_end = find_char(src.c_str(), result[0].nTo + 1, '}', '{');
+	if (struct_end < 0)
+	{
+		printf("Can't find %s definition-end\r\n", pattern);
+		return 0;
+	}	
+	std::string struct_content;
+	struct_content.assign(src.c_str() + result[0].nTo, struct_end - 1 - result[0].nTo);
+
+	//vStructs.push_back(struct_name);
+	vHeader.insert(header);
+	EnumInfo ei;
+	ei.sName = enum_name;
+	ei.sNamespaceEnum = sNamespaceEnum;
+	ei.sNamespace = enum_namespace;
+
+	// 去除注释
+	erase_by_regex(struct_content, "\\/\\*(.*\\s*)+?\\*\\/");
+	erase_by_regex(struct_content, "\\/\\/.*");
+
+	// 读入每行并分析
+	std::vector<std::pair<std::string, std::string> > enums;
+	int line_from = 0;
+	std::string line;
+	do
+	{		
+		line_from = read_line(struct_content, line_from, line);
+		if (!line.empty()) {
+			parse_enums(line, enums);	
+		}
+	} while (line_from < (int)struct_content.size());
+
+	for (unsigned i = 0; i < enums.size(); ++i)
+	{
+		EnumMemberInfo mi;
+		//mi.sType = vars[i].first;
+
+		std::string &v = enums[i].second;
+		mi.sName = enums[i].first;
+		mi.sExpression = enums[i].second;
+		mi.nType = 0;
+
+		if (!mi.sExpression.empty()) {
+			std::vector<RegexResult> r;
+			int count = find_by_regex(mi.sExpression, "^[0-9]+$", r);
+			if (0 == count) {
+				mi.nType = 1;
+			} else {
+				mi.nType = 2;
+			}
+		}
+
+		ei.vMember.push_back(mi);
+	}
+
+	vEnums.push_back(ei);
+
+	return 0;
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 	if (argc < 2) {
@@ -620,6 +759,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	std::set<std::string> headers;		//用到的头文件列表
 	std::vector<StructInfo> structs;	//导出的结构名列表
+	std::vector<EnumInfo> enums;      //导出的枚举列表
 	// for each-line in export_list.c2lua 
 	std::string export_list_src;
 	read_file(argv[1], export_list_src);
@@ -635,11 +775,18 @@ int _tmain(int argc, _TCHAR* argv[])
 			split_string(line.c_str(), strs);		
 			if (strs.size() >= 2)
 			{
-				std::set<std::string> filter;
-				for (unsigned i = 2; i < strs.size(); ++i) {
-					filter.insert(strs[i]);
+				if (start_with(line, "enum:"))
+				{
+					parse_enum_definition(headers, enums, strs[1].c_str(), strs[0].substr(5).c_str());
+				} 
+				else {
+					std::set<std::string> filter;
+					for (unsigned i = 2; i < strs.size(); ++i) {
+						filter.insert(strs[i]);
+					}
+					parse_struct_definition(headers, structs, strs[1].c_str(), strs[0].c_str(), filter);
 				}
-				parse_struct_definition(headers, structs, strs[1].c_str(), strs[0].c_str(), filter);
+				
 			}
 		}
 	} while (line_from < (int)export_list_src.size());
@@ -748,6 +895,26 @@ int _tmain(int argc, _TCHAR* argv[])
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 	}
 
+	// for each enums.
+	output(out, "\tint nIndex;");
+	for (unsigned i = 0; i < enums.size(); ++i)
+	{
+		const EnumInfo &ei = enums[i];
+		output(out, "\tnIndex = -1;");
+		output(out, "\tout += \"\\r\\n\";");
+		for (unsigned j = 0; j < ei.vMember.size(); ++j) {
+			const EnumMemberInfo &mi = ei.vMember[j];
+			if (mi.nType) {
+				output(out, "\tnIndex = %s;", mi.sExpression.c_str());
+			} else {
+				output(out, "\tnIndex++;");
+			}
+			output(out, "\toutput(out, \"%s.%s = %%d\", nIndex);", ei.sName.c_str(), mi.sName.c_str());
+		}
+		output(out, "");
+	}
+
+	output(out, "");
 	output(out, "\tAutoFile f(\"/script/client/util/c2luaimpl.lua\", L3_O_WRITE);");
 	output(out, "\tif (f) {");
 	output(out, "\t\tf->Write(out.c_str(), out.size());");
