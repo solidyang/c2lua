@@ -295,40 +295,44 @@ struct StructMemberInfo
 	int getType() const
 	{
 		int typ = -1;
-		if ((sType == "char" && sArrayLen.empty()) || sType == "Sint8") {
-			typ = 0;
+		bool bArray = !sArrayLen.empty();
+		if (!bArray) {
+			if (sType == "char" || sType == "Sint8") {
+				typ = 0;
+			}
+			else if (sType == "Uint8") {
+				typ = 1;
+			}
+			else if (sType == "Sint16") {
+				typ = 2;
+			}
+			else if (sType == "Uint16" || sType == "DataHead") {
+				typ = 3;
+			}
+			else if (sType == "Sint32") {
+				typ = 4;
+			}
+			else if (sType == "Uint32") {
+				typ = 5;
+			}
+			else if (sType == "float") {
+				typ = 6;
+			}
+			else if (sType == "double") {
+				typ = 7;
+			}
+			else if (sType == "bool") {
+				typ = 10;
+			}
 		}
-		else if (sType == "Uint8") {
-			typ = 1;
+		else {
+			if (sType == "char") {
+				typ = 8;
+			}else {
+				typ = 9;
+			}
 		}
-		else if (sType == "Sint16") {
-			typ = 2;
-		}
-		else if (sType == "Uint16" || sType == "DataHead") {
-			typ = 3;
-		}
-		else if (sType == "Sint32") {
-			typ = 4;
-		}
-		else if (sType == "Uint32") {
-			typ = 5;
-		}
-		else if (sType == "float") {
-			typ = 6;
-		}
-		else if (sType == "double") {
-			typ = 7;
-		}
-		else if (sType == "char" && !sArrayLen.empty()) {
-			typ = 8;
-		}
-		else if (!sArrayLen.empty()) {
-			typ = 9;
-		}
-		else if (sType == "bool") {
-			typ = 10;
-		}
-
+				
 		return typ;
 	}
 };
