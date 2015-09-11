@@ -902,6 +902,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		const EnumInfo &ei = enums[i];
 		output(out, "\tnIndex = -1;");
 		output(out, "\tout += \"\\r\\n\";");
+		output(out, "\tout += \"%s = {};\";", ei.sName.c_str());
 		for (unsigned j = 0; j < ei.vMember.size(); ++j) {
 			const EnumMemberInfo &mi = ei.vMember[j];
 			if (mi.nType) {
@@ -909,7 +910,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			} else {
 				output(out, "\tnIndex++;");
 			}
-			output(out, "\toutput(out, \"%s.%s = %%d\", nIndex);", ei.sName.c_str(), mi.sName.c_str());
+			output(out, "\toutput(out, \"%s.%s = %%d;\", nIndex);", ei.sName.c_str(), mi.sName.c_str());
 		}
 		output(out, "");
 	}
