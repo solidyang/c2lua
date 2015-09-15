@@ -158,7 +158,7 @@ void parse_vars(const std::string &line, std::vector<std::pair<std::string, std:
 void parse_enums(const std::string &line, std::vector<std::pair<std::string, std::string> > &enums)
 {
 	std::vector<RegexResult> result;
-	int count = find_by_regex(line, "(\\w+)\\s*(?:=\\s*(\\w+[<]*\\w*)\\s*)*[,]*", result);
+	int count = find_by_regex(line, "(\\w+)\\s*(?:=\\s*(\\w+\\s*[<|-|+]*\\s*\\w*\\s*[-|+]*\\s*\\w*)\\s*)*[,]*", result);
 	if (count < 2) {
 		return;
 	}
