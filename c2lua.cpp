@@ -410,12 +410,12 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 	}
 
 	if (0 == count) {
-		_snprintf(pattern, 255, "\\bstruct\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*\\w+(\\w+|::)\\w+\\s*\\{", struct_name.c_str());	
+		_snprintf(pattern, 255, "\\bstruct\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*(?:\\w*::)*(\\w+)\\s*\\{", struct_name.c_str());	
 		count = find_by_regex(src, pattern, result);
 	}
 
 	if (0 == count) {
-		_snprintf(pattern, 255, "\\bclass\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*\\w+(\\w+|::)\\w+\\s*\\{", struct_name.c_str());	
+		_snprintf(pattern, 255, "\\bclass\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*(?:\\w*::)*(\\w+)\\s*\\{", struct_name.c_str());	
 		count = find_by_regex(src, pattern, result);
 	}
 
