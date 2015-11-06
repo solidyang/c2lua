@@ -140,7 +140,7 @@ void erase_by_regex(std::string &src, const char *pattern)
 void parse_vars(const std::string &line, std::vector<std::pair<std::string, std::string> > &vars)
 {
 	std::vector<RegexResult> result;
-	int count = find_by_regex(line, "(\\w+)\\s+([\\w\\s\\+\\[\\]]+)(?:\\s*,\\s*([\\w\\s\\+\\[\\]]+))*;", result);
+	int count = find_by_regex(line, "(\\w+)\\s+([\\w\\s\\:\\+\\[\\]]+)(?:\\s*,\\s*([\\w\\s\\:\\+\\[\\]]+))*;", result);
 	if (count < 3) {
 		return;
 	}
@@ -881,7 +881,15 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			if (mi.getType() == 8)
 			{
-				output(out, "\tout += \"\\t\\treturn buff:%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
+				if (mi.sArrayLen1.empty()) {
+					output(out, "\tout += \"\\t\\treturn buff:%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
+				}
+				else {
+					output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen.c_str());
+					output(out, "\toutput(out, \"\\t\\t\\t\\tret[i] = buff:%s(offset + i*%%d);\\r\\n\", %s);", mi.sLuaDataFunc.c_str(), mi.sArrayLen1.c_str());
+					output(out, "\tout += \"\\t\\tend;\\r\\n\";");
+				}
+			
 			}else {
 				output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen.c_str());
 				if (mi.sArrayLen1.empty()) {
