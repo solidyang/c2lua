@@ -255,7 +255,38 @@ int read_line(const std::string &src, int from, std::string &line)
 	}		
 
 	if (line_end > from) {
-		line.assign(src.c_str(), from, line_end - from);
+		std::string line_tmp;
+		line_tmp.assign(src.c_str(), from, line_end - from);
+		if (find_char(line_tmp.c_str(), 0, '(') >= 0) {
+			const char *s = src.c_str() + from;
+
+			int count = 0;
+			bool bHasSeg = false;
+			while (s) {
+				if (*s == '{') {
+					count++;
+					bHasSeg = true;
+				}
+				if (*s == '}') {
+					count--;
+				}
+
+				if ((!bHasSeg && *s == ';') || (bHasSeg && count == 0)) {
+					break;
+				}
+				from++;
+				s++;
+			}
+
+			line_end = find_char(src.c_str(), from, '\n');
+			if (line_end < 0){
+				line_end = src.size();
+			}
+
+			line.clear();
+		}else  {
+			line.assign(src.c_str(), from, line_end - from);
+		}
 	}		
 	else {
 		line.clear();
