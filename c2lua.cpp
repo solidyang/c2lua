@@ -935,9 +935,9 @@ int _tmain(int argc, _TCHAR* argv[])
 					output(out, "\toutput(out, \"\\t\\t\\tfor j = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen1.c_str());
 					std::string::size_type pos = 0;
 					if ((pos = mi.sLuaDataFunc.find("_G.C2Lua", pos)) != std::string::npos) {
-						output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = C2Lua.locate(buff, offset + i*%%d + j*%s, \\\" %s\\\");\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLen.c_str(), mi.sType.c_str());
+						output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = C2Lua.locate(buff, offset + i*%%d + j*%s, \\\" %s\\\");\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLen.c_str(), mi.sType.c_str(), si.sNamespaceStruct.c_str(), mi.sName.c_str());
 					} else {
-						output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = buff:%s(offset + i*%%d + j*%d);\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLuaDataFunc.c_str(), mi.sLen.c_str(), si.sNamespaceStruct.c_str(), mi.sName.c_str());
+						output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = buff:%s(offset + i*%%d + j*%s);\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLuaDataFunc.c_str(), mi.sLen.c_str(), si.sNamespaceStruct.c_str(), mi.sName.c_str());
 					}
 					output(out, "\tout += \"\\t\\t\\tend;\\r\\n\";");
 					output(out, "\tout += \"\\t\\t\\tret[i] = item;\\r\\n\";");
