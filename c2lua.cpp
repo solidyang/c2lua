@@ -868,6 +868,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		output(out, "\toutput(out, \"\\treturn %%d;\\n\", sizeof(%s));", si.sNamespaceStruct.c_str());
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 
+		//offset of member
 		output(out, "\tout += \"function C2Lua.Offset%s(sVarName)\\r\\n\";", si.sName.c_str());
 		output(out, "\tout += \"\\tlocal typ, off = 0;\\r\\n\";");
 		for (unsigned j = 0; j < si.vMember.size(); ++j)
@@ -893,7 +894,18 @@ int _tmain(int argc, _TCHAR* argv[])
 		output(out, "\tout += \"\\treturn typ, off;\\r\\n\";");
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 
+		//copy member to table;
+		output(out, "\tout += \"function C2Lua.Extract%s(obj)\\r\\n\";", si.sName.c_str());
+		output(out, "\tout += \"\\tlocal extract = {};\\r\\n\";");
+		for (unsigned j = 0; j < si.vMember.size(); ++j)
+		{
+			const StructMemberInfo &mi = si.vMember[j];
+			output(out, "\tout += \"\\textract.%s = obj.%s;\\r\\n\";", mi.sName.c_str(), mi.sName.c_str());		
+		}
+		output(out, "\tout += \"\\treturn extract;\\r\\n\";");
+		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 
+		//get array data
 		output(out, "\tout += \"function C2Lua.GetArrayData%s(buff, offset, sVarName)\\r\\n\";", si.sName.c_str());
 		output(out, "\tout += \"\\tlocal ret = {};\\r\\n\";");
 		unsigned count = 0;
