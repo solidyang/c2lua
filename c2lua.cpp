@@ -900,13 +900,23 @@ int _tmain(int argc, _TCHAR* argv[])
 		for (unsigned j = 0; j < si.vMember.size(); ++j)
 		{
 			const StructMemberInfo &mi = si.vMember[j];
-			output(out, "\tout += \"\\textract.%s = obj.%s;\\r\\n\";", mi.sName.c_str(), mi.sName.c_str());		
+			int typ = mi.getType();
+			std::string::size_type pos = 0;
+			if (typ >= 99 && (pos = mi.sLuaDataFunc.find("_G.C2Lua", pos)) != std::string::npos) {
+				output(out, "\tout += \"\\textract.%s = C2Lua.readDataEx(obj, \\\"%s\\\", true);\\r\\n\";", mi.sName.c_str(), mi.sName.c_str());	
+			}
+			else if (typ >= 0) {
+				output(out, "\tout += \"\\textract.%s = obj.%s;\\r\\n\";", mi.sName.c_str(), mi.sName.c_str());	
+			}
+			else {
+				output(out, "\tout += \"\\textract.%s = C2Lua.Extract%s(obj.%s);\\r\\n\";", mi.sName.c_str(), mi.sType.c_str(), mi.sName.c_str());
+			}	
 		}
 		output(out, "\tout += \"\\treturn extract;\\r\\n\";");
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 
 		//get array data
-		output(out, "\tout += \"function C2Lua.GetArrayData%s(buff, offset, sVarName)\\r\\n\";", si.sName.c_str());
+		output(out, "\tout += \"function C2Lua.GetArrayData%s(buff, offset, sVarName, bExtract)\\r\\n\";", si.sName.c_str());
 		output(out, "\tout += \"\\tlocal ret = {};\\r\\n\";");
 		unsigned count = 0;
 		for (unsigned j = 0; j < si.vMember.size(); ++j)
@@ -939,6 +949,10 @@ int _tmain(int argc, _TCHAR* argv[])
 					std::string::size_type pos = 0;
 					if ((pos = mi.sLuaDataFunc.find("_G.C2Lua", pos)) != std::string::npos) {
 						output(out, "\tout += \"\\t\\t\\tret[i] = C2Lua.locate(buff, offset + i*%s, \\\"%s\\\");\\r\\n\";", mi.sLen.c_str(), mi.sType.c_str());
+						output(out, "\tout += \"\\t\\t\\tif bExtract == true then\\r\\n\";");
+						output(out, "\tout += \"\\t\\t\\t\\tlocal tmp = C2Lua.Extract%s(ret[i]);\\r\\n\";", mi.sType.c_str());
+						output(out, "\tout += \"\\t\\t\\t\\tret[i] = tmp;\\r\\n\";");
+						output(out, "\tout += \"\\t\\t\\tend;\\r\\n\";");
 					} else {
 						output(out, "\tout += \"\\t\\t\\tret[i] = buff:%s(offset + i*%s);\\r\\n\";", mi.sLuaDataFunc.c_str(), mi.sLen.c_str());
 					}
@@ -948,6 +962,10 @@ int _tmain(int argc, _TCHAR* argv[])
 					std::string::size_type pos = 0;
 					if ((pos = mi.sLuaDataFunc.find("_G.C2Lua", pos)) != std::string::npos) {
 						output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = C2Lua.locate(buff, offset + i*%%d + j*%s, \\\" %s\\\");\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLen.c_str(), mi.sType.c_str(), si.sNamespaceStruct.c_str(), mi.sName.c_str());
+						output(out, "\tout += \"\\t\\t\\tif bExtract == true then\\r\\n\";");
+						output(out, "\tout += \"\\t\\t\\tlocal tmp = C2Lua.Extract%s(item[i]);\\r\\n\";", mi.sType.c_str());
+						output(out, "\tout += \"\\t\\t\\titem[i] = tmp;\\r\\n\";");
+						output(out, "\tout += \"\\t\\t\\tend;\\r\\n\";");
 					} else {
 						output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = buff:%s(offset + i*%%d + j*%s);\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLuaDataFunc.c_str(), mi.sLen.c_str(), si.sNamespaceStruct.c_str(), mi.sName.c_str());
 					}
