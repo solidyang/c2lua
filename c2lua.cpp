@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <sstream>
 extern "C" {
 #include <pcre2.h>
 };
@@ -139,7 +140,7 @@ void erase_by_regex(std::string &src, const char *pattern)
 void parse_vars(const std::string &line, std::vector<std::pair<std::string, std::string> > &vars)
 {
 	std::vector<RegexResult> result;
-	int count = find_by_regex(line, "(\\w+)\\s+([\\w\\[\\]]+)(?:\\s*,\\s*([\\w\\[\\]]+))*;", result);
+	int count = find_by_regex(line, "(\\w+)\\s+([\\w\\s\\:\\+\\[\\]]+)(?:\\s*,\\s*([\\w\\s\\:\\+\\[\\]]+))*;", result);
 	if (count < 3) {
 		return;
 	}
@@ -153,6 +154,25 @@ void parse_vars(const std::string &line, std::vector<std::pair<std::string, std:
 		v.assign(line.c_str(), result[i].nFrom, result[i].nTo - result[i].nFrom);
 		vars.push_back(std::pair<std::string, std::string>(t, v));
 	}
+}
+
+void parse_enums(const std::string &line, std::vector<std::pair<std::string, std::string> > &enums)
+{
+	std::vector<RegexResult> result;
+	int count = find_by_regex(line, "(\\w+)\\s*(?:=\\s*(\\w+\\s*[<|-|+]*\\s*\\w*\\s*[-|+]*\\s*\\w*)\\s*)*[,]*", result);
+	if (count < 2) {
+		return;
+	}
+
+	std::string t;
+	t.assign(line.c_str(), result[1].nFrom, result[1].nTo - result[1].nFrom);
+
+	std::string v;
+	if (count > 2) {
+		v.assign(line.c_str(), result[2].nFrom, result[2].nTo - result[2].nFrom);
+	}
+
+	enums.push_back(std::pair<std::string, std::string>(t, v));
 }
 
 static void output(std::string &out, const char *fmt, ...)
@@ -223,6 +243,10 @@ void split_string(const char *str, std::vector<std::string> &v)
 	}
 }
 
+bool start_with(std::string str, std::string start) {
+	return str.compare(0, start.size(), start) == 0;
+}
+
 int read_line(const std::string &src, int from, std::string &line)
 {
 	int line_end = find_char(src.c_str(), from, '\n');
@@ -231,7 +255,38 @@ int read_line(const std::string &src, int from, std::string &line)
 	}		
 
 	if (line_end > from) {
-		line.assign(src.c_str(), from, line_end - from);
+		std::string line_tmp;
+		line_tmp.assign(src.c_str(), from, line_end - from);
+		if (find_char(line_tmp.c_str(), 0, '(') >= 0) {
+			const char *s = src.c_str() + from;
+
+			int count = 0;
+			bool bHasSeg = false;
+			while (s) {
+				if (*s == '{') {
+					count++;
+					bHasSeg = true;
+				}
+				if (*s == '}') {
+					count--;
+				}
+
+				if ((!bHasSeg && *s == ';') || (bHasSeg && count == 0)) {
+					break;
+				}
+				from++;
+				s++;
+			}
+
+			line_end = find_char(src.c_str(), from, '\n');
+			if (line_end < 0){
+				line_end = src.size();
+			}
+
+			line.clear();
+		}else  {
+			line.assign(src.c_str(), from, line_end - from);
+		}
 	}		
 	else {
 		line.clear();
@@ -247,89 +302,98 @@ struct StructMemberInfo
 	std::string sArrayLen;
 	std::string sArrayLen1;
 	std::string sLuaDataFunc;
-	int nLen;
+	std::string sLen;
 	void setType(std::string typ)
 	{
 		sType = typ;
-		nLen = 0;
+		sLen = "0";
 		if ((sType == "char" && sArrayLen.empty()) || sType == "Sint8") {
 			sLuaDataFunc = "GetSint8";
-			nLen = 1;
+			sLen = "1";
 		}
 		else if (sType == "Uint8") {
 			sLuaDataFunc = "GetUint8";
-			nLen = 1;
+			sLen = "1";
 		}
 		else if (sType == "Sint16") {
 			sLuaDataFunc = "GetSint16";
-			nLen = 2;
+			sLen = "2";
 		}
 		else if (sType == "Uint16" || sType == "DataHead") {
 			sLuaDataFunc = "GetUint16";
-			nLen = 2;
+			sLen = "2";
 		}
 		else if (sType == "Sint32") {
 			sLuaDataFunc = "GetSint32";
-			nLen = 4;
+			sLen = "4";
 		}
 		else if (sType == "Uint32") {
 			sLuaDataFunc = "GetUint32";
-			nLen = 4;
+			sLen = "4";
 		}
 		else if (sType == "float") {
 			sLuaDataFunc = "GetFloat";
-			nLen = 4;
+			sLen = "4";
 		}
 		else if (sType == "double") {
 			sLuaDataFunc = "GetDouble";
-			nLen = 4;
+			sLen = "4";
 		}
 		else if (sType == "char" && !sArrayLen.empty()) {
 			sLuaDataFunc = "GetString";
 		}
 		else if (sType == "bool") {
 			sLuaDataFunc = "GetBoolean";
-			nLen = 1;
+			sLen = "1";
+		}
+		else {
+			std::ostringstream o;
+			o << "_G.C2Lua.readData(t, \\\"" << sType <<"\\\")";
+			sLuaDataFunc = o.str();
+
+			o.str("");
+			o << "_G.C2Lua.sizeof(\\\"" << sType <<"\\\")";
+			sLen = o.str();
 		}
 	}
 	int getType() const
 	{
 		int typ = -1;
 		bool bArray = !sArrayLen.empty();
-		if (!bArray) {
-			if (sType == "char" || sType == "Sint8") {
-				typ = 0;
-			}
-			else if (sType == "Uint8") {
-				typ = 1;
-			}
-			else if (sType == "Sint16") {
-				typ = 2;
-			}
-			else if (sType == "Uint16" || sType == "DataHead") {
-				typ = 3;
-			}
-			else if (sType == "Sint32") {
-				typ = 4;
-			}
-			else if (sType == "Uint32") {
-				typ = 5;
-			}
-			else if (sType == "float") {
-				typ = 6;
-			}
-			else if (sType == "double") {
-				typ = 7;
-			}
-			else if (sType == "bool") {
-				typ = 10;
-			}
+
+		if (sType == "char" || sType == "Sint8") {
+			typ = 0;
 		}
-		else {
+		else if (sType == "Uint8") {
+			typ = 1;
+		}
+		else if (sType == "Sint16") {
+			typ = 2;
+		}
+		else if (sType == "Uint16" || sType == "DataHead") {
+			typ = 3;
+		}
+		else if (sType == "Sint32") {
+			typ = 4;
+		}
+		else if (sType == "Uint32") {
+			typ = 5;
+		}
+		else if (sType == "float") {
+			typ = 6;
+		}
+		else if (sType == "double") {
+			typ = 7;
+		}
+		else if (sType == "bool") {
+			typ = 10;
+		}
+
+		if (bArray) {
 			if (sType == "char") {
 				typ = 8;
 			}else {
-				typ = 9;
+				typ += 100;
 			}
 		}
 				
@@ -379,20 +443,20 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 	// lookup struct definition
 	std::vector<RegexResult> result;
 	char pattern[256];
-	_snprintf(pattern, 255, "\\bstruct\\s*%s\\s*\\{", struct_name.c_str());	
+	_snprintf(pattern, 255, "\\bstruct\\s*(?:SU_LIB_COMMON)?\\s*%s\\s*\\{", struct_name.c_str());	
 	int count = find_by_regex(src, pattern, result);
 	if (0 == count) {
-		_snprintf(pattern, 255, "\\bclass\\s*%s\\s*\\{", struct_name.c_str());	
+		_snprintf(pattern, 255, "\\bclass\\s*(?:SU_LIB_COMMON)?\\s*%s\\s*\\{", struct_name.c_str());	
 		count = find_by_regex(src, pattern, result);
 	}
 
 	if (0 == count) {
-		_snprintf(pattern, 255, "\\bstruct\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*\\w+(\\w+|::)\\w+\\s*\\{", struct_name.c_str());	
+		_snprintf(pattern, 255, "\\bstruct\\s*(?:SU_LIB_COMMON)?\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*(?:\\w*::)*(\\w+)\\s*\\{", struct_name.c_str());	
 		count = find_by_regex(src, pattern, result);
 	}
 
 	if (0 == count) {
-		_snprintf(pattern, 255, "\\bclass\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*\\w+(\\w+|::)\\w+\\s*\\{", struct_name.c_str());	
+		_snprintf(pattern, 255, "\\bclass\\s*(?:SU_LIB_COMMON)?\\s*%s\\s*:\\s*(?:public|private|protected)?\\s*(?:\\w*::)*(\\w+)\\s*\\{", struct_name.c_str());	
 		count = find_by_regex(src, pattern, result);
 	}
 
@@ -484,7 +548,7 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 		for (;it != vStructs.end(); ++it) {
 			if (it->sNamespaceStruct.compare(sNamespaceStructInherit) == 0
 				|| it->sName.compare(sNamespaceStructInherit) == 0) {
-				for (int i = 0; i < it->vMember.size(); ++i) {
+				for (unsigned i = 0; i < it->vMember.size(); ++i) {
 					si.vMember.push_back(it->vMember[i]);
 				}
 				break;
@@ -606,6 +670,122 @@ int parse_struct_definition(std::set<std::string> &vHeader, std::vector<StructIn
 	return 0;
 }
 
+struct EnumMemberInfo
+{
+	std::string sName;
+	std::string sExpression;
+	int nType;
+};
+
+struct EnumInfo
+{
+	std::string sName, sNamespaceEnum, sNamespace;
+	std::vector<EnumMemberInfo> vMember;
+};
+
+int parse_enum_definition(std::set<std::string> &vHeader, std::vector<EnumInfo> &vEnums, const char *sNamespaceEnum, const char *sHeader)
+{
+	printf("Export %s in %s to lua...\n", sNamespaceEnum, sHeader);
+
+	// extract struct name
+	std::string enum_name = sNamespaceEnum;
+	std::string enum_namespace;
+	const char *namespace_end = strrchr(sNamespaceEnum, ':');
+	if (namespace_end) {
+		enum_name.assign(namespace_end+1, 0, sNamespaceEnum + strlen(sNamespaceEnum) - (namespace_end+1));
+		enum_namespace.assign(sNamespaceEnum, 0, namespace_end - sNamespaceEnum - 1);
+	}
+
+
+	// extract header
+	std::string header = sHeader;
+	const char *slash = NULL;
+	const char *have_include = strstr(sHeader, "/include/");
+	if (have_include) {
+		slash = strchr(have_include + 10, '/');
+	}	
+	else {
+		slash = strrchr(sHeader, '/');
+	}
+	if (slash) {
+		header.assign(slash+1, 0, sHeader + strlen(sHeader) - (slash+1));
+	}
+
+
+	// load header
+	std::string src;
+	read_file(sHeader, src);
+
+	// lookup struct definition
+	std::vector<RegexResult> result;
+	char pattern[256];
+	_snprintf(pattern, 255, "\\benum\\s*%s\\s*\\{", enum_name.c_str());	
+	int count = find_by_regex(src, pattern, result);
+	if (0 == count) {
+		printf("Can't find %s definition in %s\r\n", sNamespaceEnum, sHeader);
+		return 0;
+	}
+
+	int struct_end = find_char(src.c_str(), result[0].nTo + 1, '}', '{');
+	if (struct_end < 0)
+	{
+		printf("Can't find %s definition-end\r\n", pattern);
+		return 0;
+	}	
+	std::string struct_content;
+	struct_content.assign(src.c_str() + result[0].nTo, struct_end - 1 - result[0].nTo);
+
+	//vStructs.push_back(struct_name);
+	vHeader.insert(header);
+	EnumInfo ei;
+	ei.sName = enum_name;
+	ei.sNamespaceEnum = sNamespaceEnum;
+	ei.sNamespace = enum_namespace;
+
+	// 去除注释
+	erase_by_regex(struct_content, "\\/\\*(.*\\s*)+?\\*\\/");
+	erase_by_regex(struct_content, "\\/\\/.*");
+
+	// 读入每行并分析
+	std::vector<std::pair<std::string, std::string> > enums;
+	int line_from = 0;
+	std::string line;
+	do
+	{		
+		line_from = read_line(struct_content, line_from, line);
+		if (!line.empty()) {
+			parse_enums(line, enums);	
+		}
+	} while (line_from < (int)struct_content.size());
+
+	for (unsigned i = 0; i < enums.size(); ++i)
+	{
+		EnumMemberInfo mi;
+		//mi.sType = vars[i].first;
+
+		std::string &v = enums[i].second;
+		mi.sName = enums[i].first;
+		mi.sExpression = enums[i].second;
+		mi.nType = 0;
+
+		if (!mi.sExpression.empty()) {
+			std::vector<RegexResult> r;
+			int count = find_by_regex(mi.sExpression, "^[0-9]+$", r);
+			if (0 == count) {
+				mi.nType = 1;
+			} else {
+				mi.nType = 2;
+			}
+		}
+
+		ei.vMember.push_back(mi);
+	}
+
+	vEnums.push_back(ei);
+
+	return 0;
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 	if (argc < 2) {
@@ -620,6 +800,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	std::set<std::string> headers;		//用到的头文件列表
 	std::vector<StructInfo> structs;	//导出的结构名列表
+	std::vector<EnumInfo> enums;      //导出的枚举列表
 	// for each-line in export_list.c2lua 
 	std::string export_list_src;
 	read_file(argv[1], export_list_src);
@@ -635,11 +816,18 @@ int _tmain(int argc, _TCHAR* argv[])
 			split_string(line.c_str(), strs);		
 			if (strs.size() >= 2)
 			{
-				std::set<std::string> filter;
-				for (unsigned i = 2; i < strs.size(); ++i) {
-					filter.insert(strs[i]);
+				if (start_with(line, "enum:"))
+				{
+					parse_enum_definition(headers, enums, strs[1].c_str(), strs[0].substr(5).c_str());
+				} 
+				else {
+					std::set<std::string> filter;
+					for (unsigned i = 2; i < strs.size(); ++i) {
+						filter.insert(strs[i]);
+					}
+					parse_struct_definition(headers, structs, strs[1].c_str(), strs[0].c_str(), filter);
 				}
-				parse_struct_definition(headers, structs, strs[1].c_str(), strs[0].c_str(), filter);
+				
 			}
 		}
 	} while (line_from < (int)export_list_src.size());
@@ -680,6 +868,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		output(out, "\toutput(out, \"\\treturn %%d;\\n\", sizeof(%s));", si.sNamespaceStruct.c_str());
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 
+		//offset of member
 		output(out, "\tout += \"function C2Lua.Offset%s(sVarName)\\r\\n\";", si.sName.c_str());
 		output(out, "\tout += \"\\tlocal typ, off = 0;\\r\\n\";");
 		for (unsigned j = 0; j < si.vMember.size(); ++j)
@@ -705,8 +894,29 @@ int _tmain(int argc, _TCHAR* argv[])
 		output(out, "\tout += \"\\treturn typ, off;\\r\\n\";");
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 
+		//copy member to table;
+		output(out, "\tout += \"function C2Lua.Extract%s(obj)\\r\\n\";", si.sName.c_str());
+		output(out, "\tout += \"\\tlocal extract = {};\\r\\n\";");
+		for (unsigned j = 0; j < si.vMember.size(); ++j)
+		{
+			const StructMemberInfo &mi = si.vMember[j];
+			int typ = mi.getType();
+			std::string::size_type pos = 0;
+			if (typ >= 99 && (pos = mi.sLuaDataFunc.find("_G.C2Lua", pos)) != std::string::npos) {
+				output(out, "\tout += \"\\textract.%s = C2Lua.readDataEx(obj, \\\"%s\\\", true);\\r\\n\";", mi.sName.c_str(), mi.sName.c_str());	
+			}
+			else if (typ >= 0) {
+				output(out, "\tout += \"\\textract.%s = obj.%s;\\r\\n\";", mi.sName.c_str(), mi.sName.c_str());	
+			}
+			else {
+				output(out, "\tout += \"\\textract.%s = C2Lua.Extract%s(obj.%s);\\r\\n\";", mi.sName.c_str(), mi.sType.c_str(), mi.sName.c_str());
+			}	
+		}
+		output(out, "\tout += \"\\treturn extract;\\r\\n\";");
+		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 
-		output(out, "\tout += \"function C2Lua.GetArrayData%s(buff, offset, sVarName)\\r\\n\";", si.sName.c_str());
+		//get array data
+		output(out, "\tout += \"function C2Lua.GetArrayData%s(buff, offset, sVarName, bExtract)\\r\\n\";", si.sName.c_str());
 		output(out, "\tout += \"\\tlocal ret = {};\\r\\n\";");
 		unsigned count = 0;
 		for (unsigned j = 0; j < si.vMember.size(); ++j)
@@ -724,15 +934,41 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			if (mi.getType() == 8)
 			{
-				output(out, "\tout += \"\\t\\treturn buff:%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
+				if (mi.sArrayLen1.empty()) {
+					output(out, "\tout += \"\\t\\treturn buff:%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
+				}
+				else {
+					output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen.c_str());
+					output(out, "\toutput(out, \"\\t\\t\\t\\tret[i] = buff:%s(offset + i*%%d);\\r\\n\", %s);", mi.sLuaDataFunc.c_str(), mi.sArrayLen1.c_str());
+					output(out, "\tout += \"\\t\\tend;\\r\\n\";");
+				}
+			
 			}else {
 				output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen.c_str());
 				if (mi.sArrayLen1.empty()) {
-					output(out, "\tout += \"\\t\\t\\tret[i] = buff:%s(offset + i*%d);\\r\\n\";", mi.sLuaDataFunc.c_str(), mi.nLen);
+					std::string::size_type pos = 0;
+					if ((pos = mi.sLuaDataFunc.find("_G.C2Lua", pos)) != std::string::npos) {
+						output(out, "\tout += \"\\t\\t\\tret[i] = C2Lua.locate(buff, offset + i*%s, \\\"%s\\\");\\r\\n\";", mi.sLen.c_str(), mi.sType.c_str());
+						output(out, "\tout += \"\\t\\t\\tif bExtract == true then\\r\\n\";");
+						output(out, "\tout += \"\\t\\t\\t\\tlocal tmp = C2Lua.Extract%s(ret[i]);\\r\\n\";", mi.sType.c_str());
+						output(out, "\tout += \"\\t\\t\\t\\tret[i] = tmp;\\r\\n\";");
+						output(out, "\tout += \"\\t\\t\\tend;\\r\\n\";");
+					} else {
+						output(out, "\tout += \"\\t\\t\\tret[i] = buff:%s(offset + i*%s);\\r\\n\";", mi.sLuaDataFunc.c_str(), mi.sLen.c_str());
+					}
 				} else {
 					output(out, "\tout += \"\\t\\t\\tlocal item = {};\\r\\n\";");
 					output(out, "\toutput(out, \"\\t\\t\\tfor j = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen1.c_str());
-					output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = buff:%s(offset + i*%%d + j*%d);\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLuaDataFunc.c_str(), mi.nLen, si.sNamespaceStruct.c_str(), mi.sName.c_str());
+					std::string::size_type pos = 0;
+					if ((pos = mi.sLuaDataFunc.find("_G.C2Lua", pos)) != std::string::npos) {
+						output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = C2Lua.locate(buff, offset + i*%%d + j*%s, \\\" %s\\\");\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLen.c_str(), mi.sType.c_str(), si.sNamespaceStruct.c_str(), mi.sName.c_str());
+						output(out, "\tout += \"\\t\\t\\tif bExtract == true then\\r\\n\";");
+						output(out, "\tout += \"\\t\\t\\tlocal tmp = C2Lua.Extract%s(item[i]);\\r\\n\";", mi.sType.c_str());
+						output(out, "\tout += \"\\t\\t\\titem[i] = tmp;\\r\\n\";");
+						output(out, "\tout += \"\\t\\t\\tend;\\r\\n\";");
+					} else {
+						output(out, "\toutput(out, \"\\t\\t\\t\\titem[i] = buff:%s(offset + i*%%d + j*%s);\\r\\n\", sizeof(((%s*)0)->%s[0]));", mi.sLuaDataFunc.c_str(), mi.sLen.c_str(), si.sNamespaceStruct.c_str(), mi.sName.c_str());
+					}
 					output(out, "\tout += \"\\t\\t\\tend;\\r\\n\";");
 					output(out, "\tout += \"\\t\\t\\tret[i] = item;\\r\\n\";");
 				}
@@ -741,13 +977,37 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			count++;
 		}
-		if (count)
+		if (count) {
+			output(out, "\tout += \"\\telse\\r\\n\";");
+			output(out, "\tout += \"\\t\\t_G.LogInfo(sVarName..\\\" is not a array in %s\\\");\\r\\n\";", si.sName.c_str());
 			output(out, "\tout += \"\\tend;\\r\\n\";");
+		}
 
 		output(out, "\tout += \"\\treturn ret;\\r\\n\";");
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 	}
 
+	// for each enums.
+	output(out, "\tint nIndex;");
+	for (unsigned i = 0; i < enums.size(); ++i)
+	{
+		const EnumInfo &ei = enums[i];
+		output(out, "\tnIndex = -1;");
+		output(out, "\tout += \"\\r\\n\\r\\n\";");
+		output(out, "\tout += \"%s = {};\";", ei.sName.c_str());
+		for (unsigned j = 0; j < ei.vMember.size(); ++j) {
+			const EnumMemberInfo &mi = ei.vMember[j];
+			if (mi.nType) {
+				output(out, "\tnIndex = %s;", mi.sExpression.c_str());
+			} else {
+				output(out, "\tnIndex++;");
+			}
+			output(out, "\toutput(out, \"%s.%s = %%d;\", nIndex);", ei.sName.c_str(), mi.sName.c_str());
+		}
+		output(out, "");
+	}
+
+	output(out, "");
 	output(out, "\tAutoFile f(\"/script/client/util/c2luaimpl.lua\", L3_O_WRITE);");
 	output(out, "\tif (f) {");
 	output(out, "\t\tf->Write(out.c_str(), out.size());");
