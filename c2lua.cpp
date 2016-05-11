@@ -390,8 +390,12 @@ struct StructMemberInfo
 		}
 
 		if (bArray) {
-			if (sType == "char") {
+			if (sType == "char")
+			{
 				typ = 8;
+				if (!sArrayLen1.empty()) {
+					typ = 9;
+				}
 			}else {
 				typ += 100;
 			}
@@ -865,7 +869,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	{
 		const StructInfo &si = structs[i];		
 		output(out, "\tout += \"function C2Lua.Sizeof%s()\";", si.sName.c_str());
-		output(out, "\toutput(out, \"\\treturn %%d;\\n\", sizeof(%s));", si.sNamespaceStruct.c_str());
+		output(out, "\toutput(out, \"\\treturn %%d;\\r\\n\", sizeof(%s));", si.sNamespaceStruct.c_str());
 		output(out, "\tout += \"end;\\r\\n\\r\\n\";\n");
 
 		//offset of member
@@ -932,18 +936,16 @@ int _tmain(int argc, _TCHAR* argv[])
 				output(out, "\tout += \"\\telseif \\\"%s\\\" == sVarName then\\r\\n\";", mi.sName.c_str());
 			}
 
-			if (mi.getType() == 8)
+			if (mi.getType() == 8) { //string
+				output(out, "\tout += \"\\t\\treturn buff:%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
+			} 
+			else if (mi.getType() == 9) { //string array
+				output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen.c_str());
+				output(out, "\toutput(out, \"\\t\\t\\t\\tret[i] = buff:%s(offset + i*%%d);\\r\\n\", %s);", mi.sLuaDataFunc.c_str(), mi.sArrayLen1.c_str());
+				output(out, "\tout += \"\\t\\tend;\\r\\n\";");
+			}
+			else
 			{
-				if (mi.sArrayLen1.empty()) {
-					output(out, "\tout += \"\\t\\treturn buff:%s(offset);\\r\\n\";", mi.sLuaDataFunc.c_str());
-				}
-				else {
-					output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen.c_str());
-					output(out, "\toutput(out, \"\\t\\t\\t\\tret[i] = buff:%s(offset + i*%%d);\\r\\n\", %s);", mi.sLuaDataFunc.c_str(), mi.sArrayLen1.c_str());
-					output(out, "\tout += \"\\t\\tend;\\r\\n\";");
-				}
-			
-			}else {
 				output(out, "\toutput(out, \"\\t\\tfor i = 0,%%d do\\r\\n\", %s - 1);", mi.sArrayLen.c_str());
 				if (mi.sArrayLen1.empty()) {
 					std::string::size_type pos = 0;
